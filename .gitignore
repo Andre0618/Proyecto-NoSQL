@@ -1,0 +1,7 @@
+# Solo se versionan backend/, frontend/ y README.md.
+# Todo lo demás en la raíz (.agents/, .claude/, skills-lock.json, etc.) se ignora.
+/*
+!/.gitignore
+!/README.md
+!/backend/
+!/frontend/

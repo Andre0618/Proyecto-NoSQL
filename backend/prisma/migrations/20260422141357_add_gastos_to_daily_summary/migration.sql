@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "DailySummary" ADD COLUMN     "totalGastos" DOUBLE PRECISION NOT NULL DEFAULT 0;

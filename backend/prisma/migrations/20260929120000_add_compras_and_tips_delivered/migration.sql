@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "DailySummary" ADD COLUMN     "propinasEntregadas" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "totalCompras" DOUBLE PRECISION NOT NULL DEFAULT 0;
