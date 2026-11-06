@@ -2,7 +2,7 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 
 process.env.JWT_SECRET ??= "una-clave-de-prueba-de-al-menos-32-caracteres"
-process.env.DATABASE_URL ??= "postgresql://prueba:prueba@localhost:5432/prueba"
+process.env.MONGODB_URL ??= "mongodb://prueba:prueba@localhost:27017/prueba"
 
 import { BusinessError, HTTP, errorCodes, errorMessage, errorStatus } from "./errors"
 import { passwordStamp } from "./session"

@@ -1,12 +1,12 @@
 generator client {
   provider = "prisma-client-js"
-
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-  directUrl = env("DATABASE_URL")
+  provider     = "mongodb"
+  url          = env("MONGODB_URL")
+  // Mongo no tiene llaves foráneas: Prisma emula las relaciones y los onDelete
+  relationMode = "prisma"
 }
 
 // Plan contratado: define qué módulos tiene un restaurante (ver lib/entitlements.ts)
@@ -16,7 +16,7 @@ enum Plan {
 }
 
 model Restaurant {
-  id        String   @id @default(uuid())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
   name      String
   address   String?
   phone     String?
@@ -28,6 +28,8 @@ model Restaurant {
   settings     Json @default("{}")
   // Excepciones al plan, funcionalidad por funcionalidad: { "pdf_reports": false }
   featureFlags Json @default("{}")
+  // Contador que escriben el cobro y el cierre del día para serializarse (ver lib/locks.ts)
+  lockVersion  Int  @default(0)
 
   users      User[]
   categories Category[]
@@ -40,13 +42,13 @@ model Restaurant {
 }
 
 model User {
-  id           String     @id @default(uuid())
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
   name         String
   email        String     @unique
   password     String
   role         Role       @default(EMPLOYEE)
   active       Boolean    @default(true)
-  restaurantId String
+  restaurantId String @db.ObjectId
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
   createdAt    DateTime   @default(now())
 
@@ -62,9 +64,9 @@ enum Role {
 }
 
 model Category {
-  id           String     @id @default(uuid())
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
   name         String
-  restaurantId String
+  restaurantId String @db.ObjectId
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
 
   products Product[]
@@ -73,15 +75,15 @@ model Category {
 }
 
 model Product {
-  id           String     @id @default(uuid())
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
   name         String
   price        Float
   unit         String     @default("unidades")  // "kg", "litros", "unidades"
   stock        Int        @default(0)
   minStock     Int        @default(5)
-  categoryId   String
+  categoryId   String @db.ObjectId
   category     Category   @relation(fields: [categoryId], references: [id])
-  restaurantId String
+  restaurantId String @db.ObjectId
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
   createdAt    DateTime   @default(now())
 
@@ -92,10 +94,10 @@ model Product {
 }
 
 model Table {
-  id           String   @id @default(uuid())
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
   number       Int
   status       TableStatus @default(DISPONIBLE)
-  restaurantId String
+  restaurantId String @db.ObjectId
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
   orders       Order[]
   createdAt    DateTime @default(now())
@@ -111,18 +113,18 @@ enum TableStatus {
 }
 
 model Order {
-  id           String      @id @default(uuid())
+  id           String      @id @default(auto()) @map("_id") @db.ObjectId
   total        Float
   tip           Float       @default(0)
   status       OrderStatus @default(ABIERTA)
   paymentMethod String?
   cashAmount   Float?
   transferMethod String?
-  restaurantId String
+  restaurantId String @db.ObjectId
   restaurant   Restaurant  @relation(fields: [restaurantId], references: [id])
-  userId       String
+  userId       String @db.ObjectId
   user         User        @relation(fields: [userId], references: [id])
-  tableId      String?
+  tableId      String? @db.ObjectId
   table        Table?      @relation(fields: [tableId], references: [id], onDelete: SetNull)
   createdAt    DateTime    @default(now())
   closedAt     DateTime?
@@ -143,12 +145,12 @@ enum OrderStatus {
 }
 
 model OrderItem {
-  id        String  @id @default(uuid())
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
   quantity  Int
   unitPrice Float
-  productId String
+  productId String @db.ObjectId
   product   Product @relation(fields: [productId], references: [id])
-  orderId   String
+  orderId   String @db.ObjectId
   order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
@@ -156,7 +158,7 @@ model OrderItem {
 }
 
 model DailySummary {
-  id              String   @id @default(uuid())
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
   date            DateTime
   totalIngresos   Float
   totalOrdenes    Int
@@ -175,7 +177,7 @@ model DailySummary {
   sueldosEfectivo            Float    @default(0)
   propinasEntregadasEfectivo Float    @default(0)
   baseCaja            Float    @default(0)
-  restaurantId        String
+  restaurantId        String @db.ObjectId
   restaurant      Restaurant @relation(fields: [restaurantId], references: [id])
   createdAt       DateTime @default(now())
 
@@ -183,13 +185,13 @@ model DailySummary {
 }
 
 model CashMovement {
-  id             String          @id @default(uuid())
+  id             String          @id @default(auto()) @map("_id") @db.ObjectId
   type           MovementType
   concept        String
   amount         Float
   paymentMethod  String?
   notes          String?
-  restaurantId   String
+  restaurantId   String @db.ObjectId
   restaurant     Restaurant      @relation(fields: [restaurantId], references: [id])
   createdAt      DateTime        @default(now())
 
@@ -204,10 +206,10 @@ enum MovementType {
 }
 
 model EmployeePayment {
-  id           String     @id @default(uuid())
-  userId       String
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String @db.ObjectId
   user         User       @relation(fields: [userId], references: [id])
-  restaurantId String
+  restaurantId String @db.ObjectId
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
   salary       Float      @default(0)
   tip          Float      @default(0)

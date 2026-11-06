@@ -4,8 +4,8 @@ import assert from "node:assert/strict"
 import { scopeArgs, isTenantModel, TenantScopeError } from "./tenantScope"
 import { runWithTenant, currentTenant } from "./tenant"
 
-const A = "11111111-1111-4111-8111-111111111111"
-const B = "22222222-2222-4222-8222-222222222222"
+const A = "aaaaaaaaaaaaaaaaaaaaaaaa"
+const B = "bbbbbbbbbbbbbbbbbbbbbbbb"
 
 test("una lectura sin filtro queda limitada al restaurante", () => {
   assert.deepEqual(scopeArgs("Order", "findMany", { orderBy: { createdAt: "desc" } }, A), {
