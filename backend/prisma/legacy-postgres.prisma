@@ -1,0 +1,221 @@
+// Solo para leer la base antigua en scripts/migrate-postgres-to-mongo.ts
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client-pg"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Plan contratado: define qué módulos tiene un restaurante (ver lib/entitlements.ts)
+enum Plan {
+  BASICO
+  PRO
+}
+
+model Restaurant {
+  id        String   @id @default(uuid())
+  name      String
+  address   String?
+  phone     String?
+  createdAt DateTime @default(now())
+
+  // Los restaurantes que ya existían quedan en PRO para no perder nada de lo que usan hoy
+  plan         Plan @default(PRO)
+  // Configuración propia del restaurante (propina sugerida, medios de pago); lo que falte toma el valor por defecto
+  settings     Json @default("{}")
+  // Excepciones al plan, funcionalidad por funcionalidad: { "pdf_reports": false }
+  featureFlags Json @default("{}")
+
+  users      User[]
+  categories Category[]
+  products   Product[]
+  orders     Order[]
+  tables     Table[]
+  dailySummaries   DailySummary[]
+  cashMovements    CashMovement[]
+  employeePayments EmployeePayment[]
+}
+
+model User {
+  id           String     @id @default(uuid())
+  name         String
+  email        String     @unique
+  password     String
+  role         Role       @default(EMPLOYEE)
+  active       Boolean    @default(true)
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+  createdAt    DateTime   @default(now())
+
+  orders           Order[]
+  employeePayments EmployeePayment[]
+
+  @@index([restaurantId])
+}
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+model Category {
+  id           String     @id @default(uuid())
+  name         String
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+
+  products Product[]
+
+  @@index([restaurantId])
+}
+
+model Product {
+  id           String     @id @default(uuid())
+  name         String
+  price        Float
+  unit         String     @default("unidades")  // "kg", "litros", "unidades"
+  stock        Int        @default(0)
+  minStock     Int        @default(5)
+  categoryId   String
+  category     Category   @relation(fields: [categoryId], references: [id])
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+  createdAt    DateTime   @default(now())
+
+  orderItems OrderItem[]
+
+  @@index([restaurantId])
+  @@index([categoryId])
+}
+
+model Table {
+  id           String   @id @default(uuid())
+  number       Int
+  status       TableStatus @default(DISPONIBLE)
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+  orders       Order[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([restaurantId, number])
+  @@index([restaurantId])
+}
+
+enum TableStatus {
+  DISPONIBLE
+  OCUPADA
+}
+
+model Order {
+  id           String      @id @default(uuid())
+  total        Float
+  tip           Float       @default(0)
+  status       OrderStatus @default(ABIERTA)
+  paymentMethod String?
+  cashAmount   Float?
+  transferMethod String?
+  restaurantId String
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id])
+  userId       String
+  user         User        @relation(fields: [userId], references: [id])
+  tableId      String?
+  table        Table?      @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  createdAt    DateTime    @default(now())
+  closedAt     DateTime?
+
+  items OrderItem[]
+
+  @@index([restaurantId, status, createdAt])
+  @@index([restaurantId, closedAt])
+  @@index([tableId, status])
+  @@index([userId])
+}
+
+enum OrderStatus {
+  ABIERTA
+  CERRADA
+  CANCELADA
+  ARCHIVADA
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  quantity  Int
+  unitPrice Float
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model DailySummary {
+  id              String   @id @default(uuid())
+  date            DateTime
+  totalIngresos   Float
+  totalOrdenes    Int
+  totalPlatos     Int
+  efectivo        Float    @default(0)
+  bancolombia     Float    @default(0)
+  nequi           Float    @default(0)
+  totalPropinas       Float    @default(0)
+  totalGastos         Float    @default(0)
+  totalPagosEmpleados Float    @default(0)
+  totalCompras        Float    @default(0)
+  comprasEfectivo     Float    @default(0)
+  gastosEfectivo      Float    @default(0)
+  propinasEntregadas  Float    @default(0)
+  // lo que se les pagó a los empleados con efectivo de la caja
+  sueldosEfectivo            Float    @default(0)
+  propinasEntregadasEfectivo Float    @default(0)
+  baseCaja            Float    @default(0)
+  restaurantId        String
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id])
+  createdAt       DateTime @default(now())
+
+  @@unique([restaurantId, date])
+}
+
+model CashMovement {
+  id             String          @id @default(uuid())
+  type           MovementType
+  concept        String
+  amount         Float
+  paymentMethod  String?
+  notes          String?
+  restaurantId   String
+  restaurant     Restaurant      @relation(fields: [restaurantId], references: [id])
+  createdAt      DateTime        @default(now())
+
+  @@index([restaurantId, type, createdAt])
+  @@index([restaurantId, createdAt])
+}
+
+enum MovementType {
+  COMPRA
+  GASTO
+  BASE_CAJA
+}
+
+model EmployeePayment {
+  id           String     @id @default(uuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+  salary       Float      @default(0)
+  tip          Float      @default(0)
+  // "Efectivo" sale de la caja; "Nequi" o "Bancolombia" es transferencia
+  paymentMethod String    @default("Efectivo")
+  notes        String?
+  createdAt    DateTime   @default(now())
+
+  @@index([restaurantId, createdAt])
+  @@index([userId])
+}

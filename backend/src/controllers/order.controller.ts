@@ -1,5 +1,5 @@
 import { Request, Response } from "express"
-import { prisma, type Tx } from "../lib/prisma"
+import { prisma, runTx, type Tx } from "../lib/prisma"
 import { CreateOrderSchema, AddItemSchema, CloseOrderSchema } from "../lib/validators"
 import { asyncHandler } from "../lib/asyncHandler"
 import { BusinessError, HTTP } from "../lib/errors"
@@ -96,7 +96,7 @@ export const addItemToOrder = asyncHandler(async (req: Request, res: Response) =
   }
   if (order.status !== "ABIERTA") throw new BusinessError("ORDER_NOT_OPEN")
 
-  const item = await prisma.$transaction(async (tx) => {
+  const item = await runTx(async (tx) => {
     await lockOpenOrder(tx, id)
 
     const product = await tx.product.findUnique({ where: { id: productId } })
@@ -165,7 +165,7 @@ export const closeOrder = asyncHandler(async (req: Request, res: Response) => {
   if (existing.status !== "ABIERTA") throw new BusinessError("ORDER_NOT_OPEN")
   if (existing._count.items === 0) throw new BusinessError("ORDER_EMPTY")
 
-  const order = await prisma.$transaction(async (tx) => {
+  const order = await runTx(async (tx) => {
     // espera a que termine un cierre de día en curso; así closedAt siempre cae en el periodo correcto
     await lockClose(tx, existing.restaurantId, "shared")
 
@@ -213,7 +213,7 @@ export const cancelOrder = asyncHandler(async (req: Request, res: Response) => {
   }
   if (order.status !== "ABIERTA") throw new BusinessError("ORDER_NOT_OPEN")
 
-  const restocked = await prisma.$transaction(async (tx) => {
+  const restocked = await runTx(async (tx) => {
     await lockOpenOrder(tx, id)
     await tx.order.update({ where: { id }, data: { status: "CANCELADA" } })
 
@@ -253,7 +253,7 @@ export const removeItemFromOrder = asyncHandler(async (req: Request, res: Respon
   }
   if (item.order.status !== "ABIERTA") throw new BusinessError("ORDER_NOT_OPEN")
 
-  await prisma.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     await lockOpenOrder(tx, item.orderId)
 
     // se vuelve a leer con la orden bloqueada: si otro ya lo quitó, no se devuelve el stock otra vez

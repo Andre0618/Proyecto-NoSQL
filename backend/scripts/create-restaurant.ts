@@ -24,9 +24,9 @@ if (name.trim().length < 2) fail("El nombre del restaurante es muy corto.")
 
 const host = (() => {
   try {
-    return new URL(process.env.DATABASE_URL ?? "").host
+    return new URL(process.env.MONGODB_URL ?? "").host
   } catch {
-    return "(DATABASE_URL no válida)"
+    return "(MONGODB_URL no válida)"
   }
 })()
 

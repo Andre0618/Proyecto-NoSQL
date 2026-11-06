@@ -6,10 +6,13 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "prisma generate && tsc",
-    "start": "prisma migrate deploy && node dist/index.js",
+    "start": "node dist/index.js",
     "create-admin": "tsx scripts/create-restaurant.ts",
     "set-plan": "tsx scripts/set-plan.ts",
-    "test": "tsx --test src/**/*.test.ts"
+    "test": "tsx --test src/**/*.test.ts",
+    "db:push": "prisma db push",
+    "generate:legacy": "prisma generate --schema prisma/legacy-postgres.prisma",
+    "migrate-data": "tsx scripts/migrate-postgres-to-mongo.ts"
   },
   "keywords": [],
   "author": "",
