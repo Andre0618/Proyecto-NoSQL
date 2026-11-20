@@ -34,9 +34,9 @@ for (const arg of flagArgs) {
 
 const host = (() => {
   try {
-    return new URL(process.env.DATABASE_URL ?? "").host
+    return new URL(process.env.MONGODB_URL ?? "").host
   } catch {
-    return "(DATABASE_URL no válida)"
+    return "(MONGODB_URL no válida)"
   }
 })()
 

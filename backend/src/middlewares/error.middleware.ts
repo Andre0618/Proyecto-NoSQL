@@ -22,8 +22,11 @@ export const errorHandler = (
 
   // errores de la base con un mensaje entendible
   const dbCode = (err as { code?: string }).code
-  if (dbCode === "P2003") return sendError(res, "IN_USE")
+  // con relationMode = "prisma" la restricción de borrado la aplica Prisma y falla con P2014 (en Postgres era P2003)
+  if (dbCode === "P2003" || dbCode === "P2014") return sendError(res, "IN_USE")
   if (dbCode === "P2002") return sendError(res, "DUPLICATE")
+  // un id que no tiene forma de ObjectId llega como P2023: para el cliente es un recurso que no existe
+  if (dbCode === "P2023") return sendError(res, "RESOURCE_NOT_FOUND")
   if (dbCode === "P2025") return sendError(res, "RESOURCE_NOT_FOUND")
 
   // errores del propio Express (JSON mal formado, cuerpo demasiado grande): son del cliente, no un fallo del servidor

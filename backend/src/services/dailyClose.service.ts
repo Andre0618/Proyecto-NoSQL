@@ -1,5 +1,5 @@
 import { DailySummary } from "@prisma/client"
-import { prisma } from "../lib/prisma"
+import { prisma, runTx } from "../lib/prisma"
 import { colombiaDayStart } from "../lib/date"
 import { getOpenPeriod, closedSince } from "../lib/period"
 import { BusinessError } from "../lib/errors"
@@ -15,7 +15,7 @@ export type CloseDayResult =
 // de madrugada de un turno de ayer queda como el de ayer; si esa fecha ya tenía resumen, se le suma.
 // Las propinas van aparte: no cuentan como ingreso.
 export const closeDayForRestaurant = async (restaurantId: string): Promise<CloseDayResult> => {
-  return prisma.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     // dos cierres a la vez (doble clic, dos dispositivos) no se pisan: el segundo espera y ya no encuentra nada
     await lockClose(tx, restaurantId, "exclusive")
 
@@ -27,17 +27,16 @@ export const closeDayForRestaurant = async (restaurantId: string): Promise<Close
       include: { items: { select: { quantity: true } } },
     })
 
-    const [baseAgg, gastosAgg, comprasAgg, gastosEfAgg, comprasEfAgg, pagosAgg, pagosEfAgg, firstMovement, firstPayment] = await Promise.all([
-      tx.cashMovement.aggregate({ where: { restaurantId, type: "BASE_CAJA", createdAt: after }, _sum: { amount: true } }),
-      tx.cashMovement.aggregate({ where: { restaurantId, type: "GASTO", createdAt: after }, _sum: { amount: true } }),
-      tx.cashMovement.aggregate({ where: { restaurantId, type: "COMPRA", createdAt: after }, _sum: { amount: true } }),
-      tx.cashMovement.aggregate({ where: { restaurantId, type: "GASTO", paymentMethod: "Efectivo", createdAt: after }, _sum: { amount: true } }),
-      tx.cashMovement.aggregate({ where: { restaurantId, type: "COMPRA", paymentMethod: "Efectivo", createdAt: after }, _sum: { amount: true } }),
-      tx.employeePayment.aggregate({ where: { restaurantId, createdAt: after }, _sum: { salary: true, tip: true } }),
-      tx.employeePayment.aggregate({ where: { restaurantId, paymentMethod: "Efectivo", createdAt: after }, _sum: { salary: true, tip: true } }),
-      tx.cashMovement.findFirst({ where: { restaurantId, createdAt: after }, orderBy: { createdAt: "asc" }, select: { createdAt: true } }),
-      tx.employeePayment.findFirst({ where: { restaurantId, createdAt: after }, orderBy: { createdAt: "asc" }, select: { createdAt: true } }),
-    ])
+    // en orden: MongoDB no admite operaciones concurrentes dentro de una misma transacción
+    const baseAgg    = await tx.cashMovement.aggregate({ where: { restaurantId, type: "BASE_CAJA", createdAt: after }, _sum: { amount: true } })
+    const gastosAgg  = await tx.cashMovement.aggregate({ where: { restaurantId, type: "GASTO", createdAt: after }, _sum: { amount: true } })
+    const comprasAgg = await tx.cashMovement.aggregate({ where: { restaurantId, type: "COMPRA", createdAt: after }, _sum: { amount: true } })
+    const gastosEfAgg  = await tx.cashMovement.aggregate({ where: { restaurantId, type: "GASTO", paymentMethod: "Efectivo", createdAt: after }, _sum: { amount: true } })
+    const comprasEfAgg = await tx.cashMovement.aggregate({ where: { restaurantId, type: "COMPRA", paymentMethod: "Efectivo", createdAt: after }, _sum: { amount: true } })
+    const pagosAgg   = await tx.employeePayment.aggregate({ where: { restaurantId, createdAt: after }, _sum: { salary: true, tip: true } })
+    const pagosEfAgg = await tx.employeePayment.aggregate({ where: { restaurantId, paymentMethod: "Efectivo", createdAt: after }, _sum: { salary: true, tip: true } })
+    const firstMovement = await tx.cashMovement.findFirst({ where: { restaurantId, createdAt: after }, orderBy: { createdAt: "asc" }, select: { createdAt: true } })
+    const firstPayment  = await tx.employeePayment.findFirst({ where: { restaurantId, createdAt: after }, orderBy: { createdAt: "asc" }, select: { createdAt: true } })
 
     const baseCaja            = baseAgg._sum.amount ?? 0
     const totalGastos         = gastosAgg._sum.amount ?? 0

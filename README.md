@@ -11,7 +11,7 @@ Plataforma multi-tenant que centraliza operaciones de mesa, inventario, caja, em
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript)
 ![Express](https://img.shields.io/badge/Express-5-000000?style=flat-square&logo=express)
 ![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=flat-square&logo=prisma)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-4169E1?style=flat-square&logo=postgresql)
+![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?style=flat-square&logo=mongodb)
 
 </div>
 
@@ -42,7 +42,7 @@ Cada restaurante opera de forma completamente aislada (multi-tenant). Un emplead
 | **Tipografía** | Bitter (títulos) y Source Sans 3 (texto) |
 | **HTTP Client** | Axios |
 | **Backend** | Node.js, Express 5, TypeScript 6 |
-| **ORM** | Prisma 5 con PostgreSQL (Neon serverless) |
+| **ORM / Base de datos** | Prisma 5 con MongoDB Atlas |
 | **Auth** | JWT (12 h), bcryptjs (cost 12) |
 | **Seguridad** | Helmet, CORS allowlist, Zod schema validation |
 | **PDF** | pdfkit |
@@ -90,8 +90,9 @@ Las pruebas de la lógica pura (fechas, impresión) corren con `npm test` dentro
 restaurante-saas/
 ├── backend/
 │   ├── prisma/
-│   │   ├── schema.prisma           # 10 modelos, índices de rendimiento
-│   │   └── migrations/
+│   │   ├── schema.prisma           # 10 modelos para MongoDB, índices de rendimiento
+│   │   ├── legacy-postgres.prisma  # esquema PostgreSQL anterior (solo para migrar datos)
+│   │   └── legacy-migrations/      # migraciones SQL anteriores (históricas)
 │   └── src/
 │       ├── controllers/            # auth, products, categories, tables,
 │       │                           # orders, cashMovements, employeePayments,
@@ -193,7 +194,7 @@ Usuario → Contexto del tenant → Roles + Funcionalidades del plan → Módulo
 Crea `backend/.env` (hay un ejemplo en `backend/.env.example`):
 
 ```
-DATABASE_URL=postgresql://usuario:clave@host/db?sslmode=require
+MONGODB_URL=mongodb+srv://usuario:clave@cluster0.xxxxx.mongodb.net/restaurantos?retryWrites=true&w=majority
 JWT_SECRET=una-cadena-aleatoria-de-32-o-mas-caracteres
 PORT=3001
 # Opcionales
@@ -211,7 +212,7 @@ NEXT_PUBLIC_API_URL=http://localhost:3001/api/
 # Backend
 cd backend
 npm install
-npx prisma migrate deploy   # aplica las migraciones (base nueva o existente)
+npx prisma db push          # crea las colecciones e índices en MongoDB Atlas
 npm run dev                 # http://localhost:3001
 
 # Frontend, en otra terminal
@@ -219,6 +220,18 @@ cd frontend
 npm install
 npm run dev                 # http://localhost:3000
 ```
+
+### Migrar datos desde PostgreSQL
+
+Si ya tenías datos en la base PostgreSQL anterior, agrega su URL como `DATABASE_URL` en `backend/.env` y ejecuta, dentro de `backend/`:
+
+```bash
+npm run generate:legacy              # genera el cliente de PostgreSQL (una vez)
+npm run migrate-data -- --dry-run    # solo cuenta lo que hay en origen
+npm run migrate-data                 # copia todo a MongoDB (pide confirmar; el destino debe estar vacío)
+```
+
+Los UUID se reemplazan por ObjectId y los correos se guardan en minúsculas. Al final compara los conteos de las 10 colecciones.
 
 ### 3. Primer uso
 
@@ -253,9 +266,9 @@ La app imprime directo a una impresora ESC/POS por USB, sin instalar nada más (
 |---|---|
 | **Frontend** | [Vercel](https://vercel.com) — deploy automático desde Git |
 | **Backend** | [Railway](https://railway.app) o [Render](https://render.com) |
-| **Base de datos** | [Neon](https://neon.tech) — PostgreSQL serverless, free tier disponible |
+| **Base de datos** | [MongoDB Atlas](https://www.mongodb.com/atlas) — clúster gratuito M0 (replica set, necesario para las transacciones) |
 
-El build del backend ejecuta `prisma migrate deploy` automáticamente antes de iniciar (`npm start`).
+El build del backend ejecuta `prisma generate`; el esquema se aplica con `npm run db:push`.
 
 ---
 ## Autor

@@ -1,6 +1,6 @@
 import { Request, Response } from "express"
 import { z } from "zod"
-import { prisma } from "../lib/prisma"
+import { prisma, runTx } from "../lib/prisma"
 import { getColombiaDayRange } from "../lib/date"
 import { getOpenPeriod } from "../lib/period"
 import { asyncHandler } from "../lib/asyncHandler"
@@ -35,7 +35,7 @@ export const clearSummaries = asyncHandler(async (req: Request, res: Response) =
   const restaurantId = req.params.restaurantId as string
   const { until } = ResetSchema.parse(req.query)
 
-  const deleted = await prisma.$transaction(async (tx) => {
+  const deleted = await runTx(async (tx) => {
     const movements = await tx.cashMovement.deleteMany({ where: { restaurantId, createdAt: { lte: until } } })
     const payments  = await tx.employeePayment.deleteMany({ where: { restaurantId, createdAt: { lte: until } } })
     const orders    = await tx.order.deleteMany({ where: { restaurantId, status: "ARCHIVADA", createdAt: { lte: until } } })
